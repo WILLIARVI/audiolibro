@@ -12,14 +12,11 @@
         :root { --bg: #121212; --sidebar: #1a1a1a; --text: #e0e0e0; --accent: #d4af37; --highlight: #f39c12; }
         body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
         
-        /* Barra Superior */
         #top-bar { background: #1a1a1a; padding: 10px 20px; display: flex; align-items: center; gap: 15px; border-bottom: 1px solid #333; z-index: 20; flex-shrink: 0; }
         #top-bar select { background: #333; color: white; border: 1px solid #555; padding: 8px 12px; border-radius: 5px; font-size: 1rem; cursor: pointer; width: 100%; max-width: 300px; }
 
-        /* Contenedor Principal */
         #app-container { display: flex; flex: 1; overflow: hidden; }
 
-        /* Menú lateral (Pestañas) */
         #sidebar { width: 320px; background: var(--sidebar); border-right: 1px solid #333; display: flex; flex-direction: column; flex-shrink: 0; }
         #sidebar-tabs { display: flex; border-bottom: 1px solid #333; }
         #sidebar-tabs button { flex: 1; background: #222; color: #888; border: none; padding: 15px; cursor: pointer; font-weight: bold; transition: 0.2s; }
@@ -33,17 +30,14 @@
         
         /* Estilo para el texto resaltado (Karaoke) */
         .tts-highlight {
-            background-color: #ffeaa7 !important; /* Amarillo suave */
+            background-color: #ffeaa7 !important;
             color: #000 !important;
             border-radius: 3px;
-            transition: background-color 0.3s ease;
         }
         
-        /* Área de lectura */
         #main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #fff; position: relative; }
         #viewer { flex: 1; overflow-y: auto; overflow-x: hidden; color: #000; } 
         
-        /* Controles inferiores */
         #audio-controls { background: #1e1e1e; border-top: 1px solid #333; padding: 15px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 15px; z-index: 10; flex-shrink: 0; }
         button { background: var(--accent); color: #000; border: none; padding: 10px 20px; border-radius: 30px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 0.95rem; }
         button:hover { background: var(--highlight); transform: scale(1.05); }
@@ -54,12 +48,10 @@
         select, input[type="range"] { background: #333; color: white; border: 1px solid #555; padding: 8px; border-radius: 5px; outline: none; }
         .control-group { display: flex; align-items: center; gap: 8px; color: #aaa; font-size: 0.9rem; }
 
-        /* RESPONSIVE: Celulares */
         @media (max-width: 768px) { 
             #app-container { flex-direction: column; }
             #sidebar { width: 100%; height: 35dvh; border-right: none; border-bottom: 1px solid #333; }
             #viewer { flex: 1; height: 100%; }
-            
             #audio-controls { padding: 10px; gap: 10px; flex-direction: column; justify-content: center; }
             .controls-row { display: flex; width: 100%; justify-content: space-around; align-items: center; gap: 10px; }
             .control-group { flex-direction: column; align-items: flex-start; font-size: 0.8rem; flex: 1; }
@@ -74,7 +66,6 @@
         <label for="book-select" style="color:#aaa;">Libro:</label>
         <select id="book-select" onchange="cambiarLibro(this.value)">
             <option value="libro.epub">El Eco de lo Eterno</option>
-            <!-- Próximamente: <option value="libro2.epub">Mi Segundo Libro</option> -->
         </select>
     </div>
 
@@ -85,7 +76,7 @@
                 <button id="tab-bookmarks" onclick="switchTab('bookmarks')">Marcadores</button>
             </div>
             <div id="toc-container" class="active-tab"><p style="padding: 20px; color: #666; text-align: center;">Cargando...</p></div>
-            <div id="bookmarks-container"><p style="padding: 20px; color: #666; text-align: center;">No hay marcadores guardados.</p></div>
+            <div id="bookmarks-container"><p style="padding: 20px; color: #666; text-align: center;">No hay marcadores.</p></div>
         </div>
 
         <div id="main-content">
@@ -124,7 +115,6 @@
         const voiceSelect = document.getElementById('voice-select');
         const rateSlider = document.getElementById('rate-slider');
 
-        // --- LÓGICA DE PESTAÑAS ---
         function switchTab(tab) {
             document.getElementById('tab-toc').classList.remove('active');
             document.getElementById('tab-bookmarks').classList.remove('active');
@@ -140,67 +130,89 @@
             }
         }
 
-        // --- INICIALIZAR LIBRO ---
         function cargarLibro(archivo) {
             stopReading();
             viewer.innerHTML = ""; 
             tocContainer.innerHTML = '<p style="padding: 20px; color: #666;">Cargando índice...</p>';
             
-            book = ePub(archivo); 
-            rendition = book.renderTo("viewer", { width: "100%", height: "100%", flow: "scrolled-doc", spread: "none" });
+            try {
+                book = ePub(archivo); 
+                rendition = book.renderTo("viewer", { width: "100%", height: "100%", flow: "scrolled-doc", spread: "none" });
 
-            // Inyectar CSS al ePub (Para el resaltado y evitar scroll horizontal)
-            rendition.themes.default({
-                'html, body': { 'overflow-x': 'hidden !important', 'width': '100% !important', 'box-sizing': 'border-box' },
-                'p': { 'font-size': '1.2rem', 'line-height': '1.6' },
-                '.tts-highlight': { 'background-color': '#ffeaa7 !important', 'color': '#000 !important', 'border-radius': '3px' }
-            });
+                // USAMOS UN MÉTODO MÁS SEGURO PARA INYECTAR EL CSS
+                const cssStyles = `
+                    html, body { overflow-x: hidden !important; width: 100% !important; box-sizing: border-box; }
+                    p { font-size: 1.2rem; line-height: 1.6; }
+                    .tts-highlight { background-color: #ffeaa7 !important; color: #000 !important; border-radius: 3px; }
+                `;
+                rendition.themes.register("custom_theme", cssStyles);
+                rendition.themes.select("custom_theme");
 
-            book.ready.then(() => book.loaded.navigation).then((navigation) => {
-                let tocHTML = '<ul>';
-                navigation.toc.forEach(item => {
-                    tocHTML += `<li><a href="#" class="toc-link" data-href="${item.href}" data-label="${item.label.trim()}">${item.label.trim()}</a></li>`;
-                });
-                tocHTML += '</ul>';
-                tocContainer.innerHTML = tocHTML;
-                
-                // Cargar primer capítulo
-                const firstLink = tocContainer.querySelector('a');
-                if(firstLink) {
-                    firstLink.classList.add('active');
-                    const href = firstLink.getAttribute('data-href');
-                    const label = firstLink.getAttribute('data-label');
-                    rendition.display(href).then(() => prepararTexto(href, label));
-                }
-
-                // Eventos de clic en el índice
-                document.querySelectorAll('.toc-link').forEach(link => {
-                    link.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        document.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
-                        this.classList.add('active');
-                        stopReading();
-                        
-                        const href = this.getAttribute('data-href');
-                        const label = this.getAttribute('data-label');
-                        rendition.display(href).then(() => prepararTexto(href, label)); 
+                book.ready.then(() => {
+                    // Si el índice falla por culpa de Word, lo atrapamos y no rompemos la app
+                    return book.loaded.navigation.catch(err => {
+                        console.warn("Error en el índice nativo. Usando respaldo.");
+                        return { toc: [] }; 
                     });
+                }).then((navigation) => {
+                    let tocHTML = '<ul>';
+                    
+                    // Si el ePub tiene un índice válido
+                    if (navigation.toc && navigation.toc.length > 0) {
+                        navigation.toc.forEach(item => {
+                            tocHTML += `<li><a href="#" class="toc-link" data-href="${item.href}" data-label="${item.label.trim()}">${item.label.trim()}</a></li>`;
+                        });
+                    } else {
+                        // PLAN B: Si el índice está roto, creamos uno basado en las páginas del libro
+                        book.spine.each((section, i) => {
+                            if(section.href) {
+                                tocHTML += `<li><a href="#" class="toc-link" data-href="${section.href}" data-label="Página ${i + 1}">Sección ${i + 1}</a></li>`;
+                            }
+                        });
+                    }
+                    tocHTML += '</ul>';
+                    tocContainer.innerHTML = tocHTML;
+                    
+                    // Cargar la primera opción por defecto
+                    const firstLink = tocContainer.querySelector('a');
+                    if(firstLink) {
+                        firstLink.classList.add('active');
+                        const href = firstLink.getAttribute('data-href');
+                        const label = firstLink.getAttribute('data-label');
+                        rendition.display(href).then(() => prepararTexto(href, label));
+                    }
+
+                    document.querySelectorAll('.toc-link').forEach(link => {
+                        link.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            document.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
+                            this.classList.add('active');
+                            stopReading();
+                            
+                            const href = this.getAttribute('data-href');
+                            const label = this.getAttribute('data-label');
+                            rendition.display(href).then(() => prepararTexto(href, label)); 
+                        });
+                    });
+                    
+                    cargarMarcadores(); 
+                    
+                }).catch(err => {
+                    console.error(err);
+                    tocContainer.innerHTML = `<p style="padding: 20px; color: red;">Error cargando el libro. Revisa el archivo.</p>`;
                 });
-                
-                cargarMarcadores(); // Cargar marcadores guardados
-                
-            }).catch(err => {
-                tocContainer.innerHTML = `<p style="padding: 20px; color: red;">Error al cargar el libro.</p>`;
-            });
+            } catch(e) {
+                tocContainer.innerHTML = `<p style="padding: 20px; color: red;">Error crítico: ${e.message}</p>`;
+            }
         }
 
-        // --- EXTRAER TEXTO ---
         function prepararTexto(href, label) {
             btnPlay.disabled = true;
             btnPlay.innerHTML = "⏳ Cargando...";
             currentChunkIndex = 0;
             textChunks = [];
 
+            // Esperar a que el iframe esté 100% listo
             setTimeout(() => {
                 let contents = rendition.getContents();
                 if (!contents || contents.length === 0) return;
@@ -211,7 +223,7 @@
                     let oraciones = rawText.match(/[^.!?]+[.!?]+/g) || [rawText];
                     let startIndex = 0;
                     
-                    if (label) {
+                    if (label && label !== "Página 1") {
                         let busqueda = label.substring(0, 15).toLowerCase(); 
                         let indexEncontrado = oraciones.findIndex(o => o.toLowerCase().includes(busqueda));
                         if (indexEncontrado !== -1) startIndex = indexEncontrado;
@@ -223,10 +235,9 @@
                 } else {
                     btnPlay.innerHTML = "❌ Sin texto";
                 }
-            }, 300); 
+            }, 500); // Aumentamos a 500ms para darle más tiempo al celular
         }
 
-        // --- REPRODUCTOR Y EFECTO KARAOKE ---
         function togglePlay() {
             if (isPlaying && !isPaused) {
                 isPaused = true;
@@ -246,7 +257,6 @@
             if (index >= textChunks.length) { stopReading(); return; }
             currentChunkIndex = index;
             
-            // RESALTAR EN PANTALLA
             resaltarOracionActual(textChunks[index]);
 
             let utterance = new SpeechSynthesisUtterance(textChunks[index]);
@@ -262,23 +272,19 @@
             synth.speak(utterance);
         }
 
-        // FUNCIÓN MÁGICA: RESALTAR TEXTO EN EL EPUB
         function resaltarOracionActual(oracion) {
             let contents = rendition.getContents();
             if (!contents || contents.length === 0) return;
             let doc = contents[0].document;
 
-            // Quitar resaltados anteriores
             doc.querySelectorAll('.tts-highlight').forEach(el => el.classList.remove('tts-highlight'));
 
-            // Buscar el párrafo que contiene esta oración
-            let parrafos = doc.querySelectorAll('p');
-            let busqueda = oracion.substring(0, 20).toLowerCase(); // Buscar por las primeras 20 letras
+            let parrafos = doc.querySelectorAll('p, div, span');
+            let busqueda = oracion.substring(0, 15).toLowerCase(); 
 
             for (let p of parrafos) {
-                if (p.innerText.toLowerCase().includes(busqueda)) {
+                if (p.innerText && p.innerText.toLowerCase().includes(busqueda)) {
                     p.classList.add('tts-highlight');
-                    // Hacer scroll automático para que el texto siempre esté visible
                     p.scrollIntoView({ behavior: 'smooth', block: 'center' }); 
                     break;
                 }
@@ -293,45 +299,40 @@
             btnPlay.innerHTML = "▶️ Reproducir";
             btnStop.disabled = true;
             
-            // Quitar resaltado al detener
             let contents = rendition.getContents();
             if (contents && contents.length > 0) {
                 contents[0].document.querySelectorAll('.tts-highlight').forEach(el => el.classList.remove('tts-highlight'));
             }
         }
 
-        // --- SISTEMA DE MARCADORES (CACHÉ) ---
         function guardarMarcador() {
             let loc = rendition.currentLocation();
             if(!loc || !loc.start) return;
             
             let cfi = loc.start.cfi;
-            let nombrePagina = loc.start.href.split('/').pop().replace('.html', ''); // Nombre genérico
-            // Buscar el capítulo al que pertenece
             let activeLabel = document.querySelector('.toc-link.active') ? document.querySelector('.toc-link.active').getAttribute('data-label') : "Marcador";
 
             let marcadores = JSON.parse(localStorage.getItem('mis_marcadores') || '[]');
             
-            // Evitar duplicados exactos
             if(!marcadores.some(m => m.cfi === cfi)) {
                 marcadores.push({ cfi: cfi, nombre: activeLabel, fecha: new Date().toLocaleDateString() });
                 localStorage.setItem('mis_marcadores', JSON.stringify(marcadores));
                 cargarMarcadores();
-                alert("📍 Marcador guardado correctamente.");
+                alert("📍 Marcador guardado.");
             } else {
-                alert("Ya tienes un marcador guardado en esta página.");
+                alert("Ya hay un marcador en esta página.");
             }
         }
 
         function cargarMarcadores() {
             let marcadores = JSON.parse(localStorage.getItem('mis_marcadores') || '[]');
             if(marcadores.length === 0) {
-                bookmarksContainer.innerHTML = '<p style="padding: 20px; color: #666; text-align: center;">No tienes marcadores guardados.</p>';
+                bookmarksContainer.innerHTML = '<p style="padding: 20px; color: #666; text-align: center;">No tienes marcadores.</p>';
                 return;
             }
 
             let html = '<ul>';
-            marcadores.forEach((m, index) => {
+            marcadores.forEach((m) => {
                 html += `<li><a href="#" class="bookmark-item" onclick="irAMarcador(event, '${m.cfi}')">
                     📍 ${m.nombre} <br><span style="font-size:0.75rem; color:#666;">${m.fecha}</span>
                 </a></li>`;
@@ -344,13 +345,11 @@
             e.preventDefault();
             stopReading();
             rendition.display(cfi).then(() => {
-                // Preparamos el texto desde el marcador
                 let activeLabel = document.querySelector('.toc-link.active') ? document.querySelector('.toc-link.active').getAttribute('data-label') : "";
                 prepararTexto(cfi, activeLabel);
             });
         }
 
-        // --- VOCES Y VELOCIDAD ---
         function cargarVoces() {
             if (typeof speechSynthesis === 'undefined') return;
             const voices = synth.getVoices();
@@ -391,7 +390,6 @@
             cargarLibro(archivo);
         }
 
-        // INICIO
         window.onload = function() {
             cargarLibro("libro.epub"); 
             cargarVoces();
