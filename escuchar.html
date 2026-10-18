@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escuchar: El Eco de lo Eterno - Willi Arvi</title>
+    
+    <!-- Librerías necesarias para leer el ePub -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/epub.js/0.3.88/epub.min.js"></script>
+
+    <style>
+        /* Estilos basados en la estética oscura de tu página web */
+        :root {
+            --bg-color: #121212;
+            --sidebar-bg: #1a1a1a;
+            --text-color: #e0e0e0;
+            --accent-color: #d4af37; /* Dorado */
+            --highlight-color: #f39c12; /* Naranja/Dorado */
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Menú Lateral (Índice) */
+        #sidebar {
+            width: 320px;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+
+        #sidebar h2 {
+            color: var(--accent-color);
+            font-size: 1.2rem;
+            padding: 20px;
+            margin: 0;
+            text-align: center;
+            border-bottom: 1px solid #333;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        #toc-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 0;
+        }
+
+        #toc-container ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        #toc-container li {
+            padding: 0;
+            margin: 0;
+        }
+
+        #toc-container a {
+            display: block;
+            padding: 15px 20px;
+            color: #aaa;
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            border-bottom: 1px solid #222;
+            cursor: pointer;
+        }
+
+        #toc-container a:hover {
+            background-color: rgba(212, 175, 55, 0.1);
+            color: var(--accent-color);
+        }
+
+        #toc-container a.active {
+            color: var(--accent-color);
+            background-color: rgba(212, 175, 55, 0.15);
+            border-left: 4px solid var(--accent-color);
+            font-weight: bold;
+        }
+
+        /* Sub-elementos del índice (Partes, Capítulos) */
+        #toc-container ul ul a {
+            padding-left: 40px;
+            font-size: 0.85rem;
+        }
+        #toc-container ul ul ul a {
+            padding-left: 60px;
+            font-size: 0.8rem;
+        }
+
+        /* Área Principal de Lectura */
+        #main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        #viewer {
+            flex: 1;
+            padding: 20px;
+            overflow-y: hidden; /* El scroll lo maneja epub.js */
+        }
+
+        /* Controles de Audio (Fijos abajo) */
+        #audio-controls {
+            background-color: #1e1e1e;
+            border-top: 1px solid #333;
+            padding: 15px 30px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.6);
+            z-index: 20;
+        }
+
+        button {
+            background-color: var(--accent-color);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: transform 0.2s, background-color 0.2s;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+            background-color: var(--highlight-color);
+        }
+
+        button:disabled {
+            background-color: #555;
+            color: #888;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        select, input[type="range"] {
+            background-color: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 8px;
+            border-radius: 5px;
+            outline: none;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+
+        /* Responsive para celulares */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+            #sidebar {
+                width: 100%;
+                height: 250px;
+                border-right: none;
+                border-bottom: 1px solid #333;
+            }
+            #audio-controls {
+                flex-wrap: wrap;
+                padding: 10px;
+                gap: 10px;
+                justify-content: center;
+            }
+            button {
+                padding: 10px 15px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Menú del Índice -->
+    <div id="sidebar">
+        <h2>Índice del Libro</h2>
+        <div id="toc-container">
+            <!-- Aquí se cargará el índice automáticamente -->
+            <p style="padding: 20px; color: #666; text-align: center;">Cargando índice...</p>
+        </div>
+    </div>
+
+    <!-- Área de Lectura -->
+    <div id="main-content">
+        <div id="viewer"></div>
+
+        <!-- Controles de Audio -->
+        <div id="audio-controls">
+            <button id="btn-play" onclick="togglePlay()" disabled>▶️ Reproducir</button>
+            <button id="btn-stop" onclick="stopReading()" disabled>⏹️ Detener</button>
+            
+            <div class="control-group">
+                <label>Voz:</label>
+                <select id="voice-select"></select>
+            </div>
+
+            <div class="control-group">
+                <label>Velocidad:</label>
+                <input type="range" id="rate-slider" min="0.5" max="2" step="0.1" value="1">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Variables Globales ---
+        let book;
+        let rendition;
+        let currentChapterText = ""; // Almacena todo el texto del capítulo seleccionado
+        let currentParagraphIndex = 0; // Párrafo actual que se está leyendo
+        let isPlaying = false;
+        let isPaused = false;
+        let textParagraphs = []; // El texto dividido en párrafos/frases
+
+        // --- Elementos del DOM ---
+        const viewer = document.getElementById('viewer');
+        const tocContainer = document.getElementById('toc-container');
+        const btnPlay = document.getElementById('btn-play');
+        const btnStop = document.getElementById('btn-stop');
+        const voiceSelect = document.getElementById('voice-select');
+        const rateSlider = document.getElementById('rate-slider');
+
+        // --- Inicialización de ePub ---
+        // IMPORTANTE: El archivo debe llamarse "libro.epub" y estar en la misma carpeta.
+        book = ePub("libro.epub"); 
+
+        // Configurar el renderizador visual (para leer en pantalla)
+        rendition = book.renderTo("viewer", {
+            width: "100%",
+            height: "100%",
+            spread: "always"
+        });
+
+        // Cargar el libro y el índice
+        book.ready.then(() => {
+            // Renderizar el índice (TOC)
+            return book.loaded.navigation;
+        }).then((navigation) => {
+            let tocHTML = '<ul>';
+            navigation.toc.forEach(item => {
+                tocHTML += `<li><a href="#" data-href="${item.href}" data-label="${item.label.trim()}">${item.label.trim()}</a>`;
+                if (item.subitems && item.subitems.length > 0) {
+                    tocHTML += '<ul>';
+                    item.subitems.forEach(subitem => {
+                        tocHTML += `<li><a href="#" data-href="${subitem.href}" data-label="${subitem.label.trim()}">${subitem.label.trim()}</a>`;
+                        if (subitem.subitems && subitem.subitems.length > 0) {
+                            tocHTML += '<ul>';
+                            subitem.subitems.forEach(subsubitem => {
+                                tocHTML += `<li><a href="#" data-href="${subsubitem.href}" data-label="${subsubitem.label.trim()}">${subsubitem.label.trim()}</a></li>`;
+                            });
+                            tocHTML += '</ul>';
+                        }
+                        tocHTML += '</li>';
+                    });
+                    tocHTML += '</ul>';
+                }
+                tocHTML += '</li>';
+            });
+            tocHTML += '</ul>';
+            tocContainer.innerHTML = tocHTML;
+            
+            // Activar el primer capítulo por defecto
+            const firstLink = tocContainer.querySelector('a');
+            if(firstLink) {
+                firstLink.classList.add('active');
+                loadChapter(firstLink.getAttribute('data-href'));
+            }
+
+            // Agregar eventos a los enlaces del índice
+            document.querySelectorAll('#toc-container a').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    // UI: Marcar como activo
+                    document.querySelectorAll('#toc-container a').forEach(l => l.classList.remove('active'));
+                    this.classList.add('active');
+
+                    const targetHref = this.getAttribute('data-href');
+                    
+                    // 1. Detener cualquier lectura anterior
+                    stopReading();
+
+                    // 2. Renderizar visualmente en la pantalla
+                    rendition.display(targetHref);
+
+                    // 3. Cargar el texto crudo para el lector de voz
+                    loadChapter(targetHref);
+                });
+            });
+        });
+
+        // Función para extraer TODO el texto del capítulo seleccionado
+        function loadChapter(href) {
+            // Limpiamos la variable
+            currentChapterText = "";
+            currentParagraphIndex = 0;
+            textParagraphs = [];
+            btnPlay.disabled = true;
+
+            // Obtenemos el contenido crudo del archivo XHTML
+            book.load(href).then((doc) => {
+                // Extraemos todo el texto visible del cuerpo del documento
+                // Usamos innerText para respetar los saltos de línea y párrafos
+                let rawText = doc.body.innerText;
+                
+                // Limpiamos un poco el texto (quitando excesos de saltos de línea)
+                rawText = rawText.replace(/\n{3,}/g, '\n\n'); 
+                
+                // Dividimos el texto en fragmentos más pequeños (por párrafos)
+                // Esto es crucial porque los navegadores (especialmente en Android) limitan la cantidad de texto que se puede leer de una sola vez.
+                textParagraphs = rawText.split('\n').filter(p => p.trim().length > 0);
+                
+                btnPlay.disabled = false;
+                btnPlay.innerHTML = "▶️ Reproducir";
+            });
+        }
+
+        // --- Lógica de Texto a Voz (TTS) ---
+        let synth = window.speechSynthesis;
+        let currentUtterance = null;
+
+        // Cargar las voces del sistema
+        function populateVoiceList() {
+            if (typeof speechSynthesis === 'undefined') return;
+            const voices = synth.getVoices();
+            voiceSelect.innerHTML = '';
+            
+            voices.forEach((voice, i) => {
+                if (voice.lang.includes('es')) { // Solo mostrar voces en español
+                    const option = document.createElement('option');
+                    option.textContent = `${voice.name} (${voice.lang})`;
+                    option.value = i;
+                    if (voice.default) option.textContent += ' -- DEFAULT';
+                    voiceSelect.appendChild(option);
+                }
+            });
+        }
+        populateVoiceList();
+        if (typeof speechSynthesis !== 'undefined' && speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = populateVoiceList;
+        }
+
+        // Función principal de Play / Pause
+        function togglePlay() {
+            if (synth.speaking && !synth.paused) {
+                // Si está hablando, pausar
+                pauseReading();
+            } else if (synth.paused) {
+                // Si está en pausa, reanudar
+                resumeReading();
+            } else {
+                // Si no está haciendo nada, empezar a leer
+                startReading();
+            }
+        }
+
+        function startReading() {
+            if (textParagraphs.length === 0) return;
+            
+            // Si ya habíamos avanzado, empezamos desde el párrafo actual. Si no, desde 0.
+            readParagraph(currentParagraphIndex);
+            isPlaying = true;
+            btnPlay.innerHTML = "⏸️ Pausar";
+            btnStop.disabled = false;
+        }
+
+        function readParagraph(index) {
+            if (index >= textParagraphs.length) {
+                // Se terminó el capítulo
+                stopReading();
+                return;
+            }
+
+            // Actualizamos el índice actual
+            currentParagraphIndex = index;
+
+            // Creamos el objeto de voz
+            currentUtterance = new SpeechSynthesisUtterance(textParagraphs[index]);
+            
+            // Configurar voz y velocidad
+            const voices = synth.getVoices();
+            if (voiceSelect.value && voices[voiceSelect.value]) {
+                currentUtterance.voice = voices[voiceSelect.value];
+            }
+            currentUtterance.rate = parseFloat(rateSlider.value);
+            currentUtterance.lang = 'es-ES';
+
+            // Cuando termina un párrafo, automáticamente lee el siguiente
+            currentUtterance.onend = () => {
+                if (isPlaying) {
+                    readParagraph(currentParagraphIndex + 1);
+                }
+            };
+
+            // Manejo de errores
+            currentUtterance.onerror = (e) => {
+                console.error("Error de voz:", e);
+                // A veces Chrome da error si la síntesis se detiene abruptamente
+                if(e.error !== "interrupted" && e.error !== "canceled") {
+                    stopReading();
+                }
+            };
+
+            // Reproducir
+            synth.speak(currentUtterance);
+        }
+
+        function pauseReading() {
+            synth.pause();
+            isPaused = true;
+            btnPlay.innerHTML = "▶️ Reanudar";
+        }
+
+        function resumeReading() {
+            synth.resume();
+            isPaused = false;
+            btnPlay.innerHTML = "⏸️ Pausar";
+        }
+
+        function stopReading() {
+            synth.cancel(); // Detiene toda la síntesis
+            isPlaying = false;
+            isPaused = false;
+            currentParagraphIndex = 0; // Reinicia al principio del capítulo
+            btnPlay.innerHTML = "▶️ Reproducir";
+            btnPlay.disabled = false;
+            btnStop.disabled = true;
+        }
+    </script>
+</body>
+</html>
