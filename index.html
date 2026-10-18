@@ -87,6 +87,7 @@
         let book, rendition, isPlaying = false, isPaused = false;
         let textChunks = [], currentChunkIndex = 0;
         let synth = window.speechSynthesis;
+        let wakeLock = null; // Variable para el bloqueo de pantalla
 
         const viewer = document.getElementById('viewer');
         const tocContainer = document.getElementById('toc-container');
@@ -94,6 +95,29 @@
         const btnStop = document.getElementById('btn-stop');
         const voiceSelect = document.getElementById('voice-select');
         const rateSlider = document.getElementById('rate-slider');
+
+        // --- LÓGICA DE PANTALLA ENCENDIDA (WAKE LOCK) ---
+        async function pedirWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => {
+                        // El sistema liberó el bloqueo (ej. cambiaron de pestaña)
+                        console.log('Wake Lock liberado');
+                    });
+                }
+            } catch (err) {
+                console.warn(`Wake Lock falló: ${err.name}, ${err.message}`);
+            }
+        }
+
+        function liberarWakeLock() {
+            if (wakeLock !== null) {
+                wakeLock.release().then(() => {
+                    wakeLock = null;
+                });
+            }
+        }
 
         // 1. INICIALIZAR EL LIBRO
         function cargarLibro(archivo) {
@@ -177,45 +201,72 @@
         // 3. REPRODUCTOR
         function togglePlay() {
             if (isPlaying && !isPaused) {
+                // PAUSAR
                 isPaused = true;
                 isPlaying = false;
-                synth.cancel(); 
+                synth.cancel(); // Corta el audio actual
+                liberarWakeLock(); // Permite que la pantalla se apague si está en pausa
                 btnPlay.innerHTML = "▶️ Reanudar";
             } else {
+                // REPRODUCIR / REANUDAR
                 isPaused = false;
                 isPlaying = true;
                 btnPlay.innerHTML = "⏸️ Pausar";
                 btnStop.disabled = false;
+                pedirWakeLock(); // ¡Mantén la pantalla encendida!
                 leerFragmento(currentChunkIndex);
             }
         }
 
-        function leerFragmento(index) {
-            if (index >= textChunks.length) { stopReading(); return; }
+        // --- LÓGICA DE RITMO FLUIDO (COLA DE REPRODUCCIÓN) ---
+        function leerFragmento(startIndex) {
+            if (startIndex >= textChunks.length || !isPlaying) { stopReading(); return; }
             
-            currentChunkIndex = index;
-            let utterance = new SpeechSynthesisUtterance(textChunks[index]);
-            
-            // --- ARREGLO DE VOZ MÓVIL ---
-            // Buscamos la voz por su ID único (voiceURI) en lugar del índice numérico
+            // Enviamos un bloque de 4 oraciones seguidas al motor
+            const CHUNKS_TO_QUEUE = 4; 
             const voices = synth.getVoices();
             const selectedURI = voiceSelect.value;
-            
-            if (selectedURI) {
-                const selectedVoice = voices.find(v => v.voiceURI === selectedURI);
-                if (selectedVoice) {
-                    utterance.voice = selectedVoice;
-                    utterance.lang = selectedVoice.lang; // Forzar el idioma de la voz
+
+            for (let i = 0; i < CHUNKS_TO_QUEUE; i++) {
+                let idx = startIndex + i;
+                if (idx >= textChunks.length) break;
+
+                let utterance = new SpeechSynthesisUtterance(textChunks[idx]);
+                
+                // Asignar voz
+                if (selectedURI) {
+                    const selectedVoice = voices.find(v => v.voiceURI === selectedURI);
+                    if (selectedVoice) {
+                        utterance.voice = selectedVoice;
+                        utterance.lang = selectedVoice.lang;
+                    }
                 }
+                
+                utterance.rate = parseFloat(rateSlider.value);
+
+                // Guardamos el índice exacto de la oración que está sonando
+                utterance.onstart = () => {
+                    currentChunkIndex = idx;
+                };
+
+                // Solo la ÚLTIMA oración del bloque llama al siguiente bloque
+                if (i === CHUNKS_TO_QUEUE - 1 || idx === textChunks.length - 1) {
+                    utterance.onend = () => { 
+                        if (isPlaying && !isPaused) { 
+                            leerFragmento(idx + 1); 
+                        } 
+                    };
+                }
+
+                // Si hay un error, que no se congele todo
+                utterance.onerror = (e) => { 
+                    if(e.error !== "interrupted" && e.error !== "canceled") { 
+                        console.warn("Error de voz:", e.error);
+                    } 
+                };
+
+                synth.speak(utterance);
             }
-            // ---------------------------
-
-            utterance.rate = parseFloat(rateSlider.value);
-
-            utterance.onend = () => { if (isPlaying && !isPaused) { leerFragmento(currentChunkIndex + 1); } };
-            utterance.onerror = (e) => { if(e.error !== "interrupted" && e.error !== "canceled" && e.error !== "not-allowed") { stopReading(); } };
-
-            synth.speak(utterance);
         }
 
         function stopReading() {
@@ -223,26 +274,24 @@
             isPlaying = false;
             isPaused = false;
             currentChunkIndex = 0;
+            liberarWakeLock(); // Apagar pantalla permitida
             btnPlay.innerHTML = "▶️ Reproducir";
             btnStop.disabled = true;
         }
 
-        // 4. CONTROL DE VOCES (Arreglado para Celulares)
+        // 4. CONTROL DE VOCES
         function cargarVoces() {
             if (typeof speechSynthesis === 'undefined') return;
             const voices = synth.getVoices();
             
             if (voices.length === 0) return;
-
-            // Evitar recargar si ya se están mostrando las voces
-            if (voiceSelect.options.length > 1) return;
+            if (voiceSelect.options.length > 1) return; // Evitar recargar
 
             voiceSelect.innerHTML = '<option value="">Voz por defecto</option>';
             let bestVoiceURI = "";
 
             voices.forEach((voice) => {
                 const option = document.createElement('option');
-                // GUARDAMOS EL voiceURI EN EL VALUE (Esto es la clave para móviles)
                 option.value = voice.voiceURI; 
                 
                 if (voice.name.includes('Google') || voice.name.includes('Natural') || voice.name.includes('Siri')) {
@@ -254,7 +303,6 @@
                 voiceSelect.appendChild(option);
             });
 
-            // Seleccionar automáticamente una buena voz al cargar
             if (bestVoiceURI) {
                 voiceSelect.value = bestVoiceURI;
             } else {
@@ -265,8 +313,8 @@
 
         function cambiarVoz() {
             if (isPlaying) {
-                synth.cancel(); // Detenemos el motor
-                // 250ms es el tiempo mágico que necesitan los celulares para cambiar de voz sin trabarse
+                synth.cancel(); 
+                // Damos 250ms para que el celular asimile el cambio de voz
                 setTimeout(() => {
                     if (isPlaying || isPaused) {
                         isPlaying = true;
@@ -300,8 +348,6 @@
         window.onload = function() {
             cargarLibro("libro.epub"); 
             cargarVoces();
-            
-            // Forzar carga de voces (Los celulares tardan en despertar el motor de voz)
             setTimeout(cargarVoces, 500); 
             setTimeout(cargarVoces, 1500); 
             setTimeout(cargarVoces, 3000); 
