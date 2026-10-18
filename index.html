@@ -12,33 +12,27 @@
         :root { --bg: #121212; --sidebar: #1a1a1a; --text: #e0e0e0; --accent: #d4af37; }
         body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
         
-        /* Menú lateral */
-        #sidebar { width: 320px; background: var(--sidebar); border-right: 1px solid #333; display: flex; flex-direction: column; z-index: 10; flex-shrink: 0; }
+        #sidebar { width: 300px; background: var(--sidebar); border-right: 1px solid #333; display: flex; flex-direction: column; flex-shrink: 0; }
         #sidebar h2 { color: var(--accent); font-size: 1.2rem; padding: 20px; margin: 0; text-align: center; border-bottom: 1px solid #333; }
         #toc-container { flex: 1; overflow-y: auto; padding: 10px 0; }
-        #toc-container a { display: block; padding: 15px 20px; color: #aaa; text-decoration: none; border-bottom: 1px solid #222; cursor: pointer; font-size: 0.95rem;}
+        #toc-container a { display: block; padding: 12px 15px; color: #aaa; text-decoration: none; border-bottom: 1px solid #222; cursor: pointer; font-size: 0.9rem;}
         #toc-container a:hover, #toc-container a.active { background: rgba(212,175,55,0.1); color: var(--accent); border-left: 4px solid var(--accent); }
         
-        /* Área de lectura */
         #main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #fff; }
-        #viewer { flex: 1; overflow-y: auto; color: #000; } /* Fondo blanco para leer cómodamente */
+        #viewer { flex: 1; overflow-y: auto; overflow-x: hidden; color: #000; } 
         
-        /* Controles inferiores */
         #audio-controls { background: #1e1e1e; border-top: 1px solid #333; padding: 15px; display: flex; flex-wrap: wrap; align-items: center; gap: 15px; justify-content: center; }
         button { background: var(--accent); color: #000; border: none; padding: 10px 20px; border-radius: 30px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        button:hover { background: #f39c12; transform: scale(1.05); }
-        button:disabled { background: #555; color: #888; cursor: not-allowed; transform: none; }
-        select, input[type="range"] { background: #333; color: white; border: 1px solid #555; padding: 8px; border-radius: 5px; outline: none; }
+        button:disabled { background: #555; color: #888; cursor: not-allowed; }
+        select, input[type="range"] { background: #333; color: white; border: 1px solid #555; padding: 8px; border-radius: 5px; max-width: 200px; }
         .control-group { display: flex; align-items: center; gap: 8px; color: #aaa; font-size: 0.9rem; }
         
-        /* Caja de errores */
-        #debug-box { display: none; background: #ff4444; color: white; padding: 15px; margin: 15px; border-radius: 8px; font-family: monospace; }
+        /* Ocultar barra de scroll horizontal en el ePub */
+        #viewer iframe { width: 100% !important; }
 
-        /* Diseño para Celulares */
         @media (max-width: 768px) { 
             body { flex-direction: column; } 
-            #sidebar { width: 100%; height: 200px; border-right: none; border-bottom: 1px solid #333; } 
-            #audio-controls { padding: 10px; gap: 10px; }
+            #sidebar { width: 100%; height: 180px; border-right: none; border-bottom: 1px solid #333; } 
         }
     </style>
 </head>
@@ -50,9 +44,7 @@
     </div>
 
     <div id="main-content">
-        <div id="viewer">
-            <div id="debug-box"></div>
-        </div>
+        <div id="viewer"></div>
         
         <div id="audio-controls">
             <button id="btn-play" onclick="togglePlay()" disabled>▶️ Reproducir</button>
@@ -71,12 +63,6 @@
     </div>
 
     <script>
-        function mostrarError(mensaje) {
-            const box = document.getElementById('debug-box');
-            box.style.display = 'block';
-            box.innerHTML += `<p><b>ERROR:</b> ${mensaje}</p>`;
-        }
-
         let book, rendition, isPlaying = false;
         let textParagraphs = [], currentIndex = 0;
         let synth = window.speechSynthesis;
@@ -91,12 +77,22 @@
         // Inicializar ePub
         book = ePub("libro.epub"); 
         
-        // CONFIGURACIÓN CLAVE: Scroll vertical, no paginado
         rendition = book.renderTo("viewer", { 
             width: "100%", 
             height: "100%", 
-            flow: "scrolled-doc", // Evita la pantalla gigante horizontal
+            flow: "scrolled-doc", 
             spread: "none" 
+        });
+
+        // Forzar el ancho del ePub para que no haya scroll horizontal
+        rendition.hooks.content.register((contents) => {
+            const body = contents.document.body;
+            body.style.width = "100%";
+            body.style.maxWidth = "100%";
+            body.style.overflowX = "hidden";
+            body.style.padding = "20px";
+            body.style.boxSizing = "border-box";
+            body.style.fontSize = "1.2rem";
         });
 
         book.ready.then(() => {
@@ -112,8 +108,9 @@
             const firstLink = tocContainer.querySelector('a');
             if(firstLink) {
                 firstLink.classList.add('active');
-                loadChapter(firstLink.getAttribute('data-href'));
-                rendition.display(firstLink.getAttribute('data-href'));
+                rendition.display(firstLink.getAttribute('data-href')).then(() => {
+                    prepararLectura(); // Prepara el texto cuando la página ya se dibujó
+                });
             }
 
             document.querySelectorAll('#toc-container a').forEach(link => {
@@ -122,80 +119,71 @@
                     document.querySelectorAll('#toc-container a').forEach(l => l.classList.remove('active'));
                     this.classList.add('active');
                     stopReading();
+                    
                     const href = this.getAttribute('data-href');
-                    rendition.display(href); // Muestra el texto en pantalla
-                    loadChapter(href); // Carga el texto para la voz
+                    // 1. Mostrar en pantalla
+                    rendition.display(href).then(() => {
+                        // 2. Una vez mostrado, extraer el texto de la pantalla
+                        prepararLectura(); 
+                    }); 
                 });
             });
-        }).catch(err => mostrarError("Error al cargar el índice del ePub."));
+        });
 
-        // EXTRAER TEXTO (Corregido para evitar el error [object Object])
-        function loadChapter(href) {
+        // NUEVA LÓGICA: Extraer el texto de lo que ya está dibujado en el iframe
+        function prepararLectura() {
+            btnPlay.disabled = true;
+            btnPlay.innerHTML = "⏳ Cargando...";
             currentIndex = 0;
             textParagraphs = [];
-            btnPlay.disabled = true;
-            btnPlay.innerHTML = "⏳ Cargando texto...";
 
-            let section = book.spine.get(href);
-            if (!section) {
-                // A veces el href trae un #ancla. Buscamos coincidencias.
-                section = book.spine.spineItems.find(item => item.href.includes(href.split('#')[0]));
-            }
-
-            if (!section) {
-                btnPlay.innerHTML = "❌ Error";
-                return mostrarError("No se pudo localizar la sección del texto.");
-            }
-
-            section.load(book.load.bind(book)).then((doc) => {
-                // Extraemos el texto de forma segura, evitando que falle con las imágenes
-                let rawText = "";
-                if (doc.body) {
-                    rawText = doc.body.innerText;
-                } else if (doc.documentElement) {
-                    rawText = doc.documentElement.textContent;
-                }
-
-                // Si no hay texto (ej. la portada), avisamos
-                if (!rawText || rawText.trim() === "") {
-                    btnPlay.innerHTML = "❌ Sin texto";
-                    textParagraphs = ["Esta página contiene solo imágenes o está en blanco. Por favor, selecciona un capítulo en el índice."];
-                } else {
-                    rawText = rawText.replace(/\n{3,}/g, '\n\n'); 
+            // Obtenemos los iframes internos que ha creado epub.js
+            let contents = rendition.getContents();
+            if (contents && contents.length > 0) {
+                let doc = contents[0].document; // El documento HTML interno
+                let rawText = doc.body.innerText || doc.body.textContent;
+                
+                if (rawText && rawText.trim() !== "") {
+                    // Dividir en párrafos legibles
                     textParagraphs = rawText.split('\n').filter(p => p.trim().length > 0);
                     btnPlay.innerHTML = "▶️ Reproducir";
+                    btnPlay.disabled = false;
+                } else {
+                    btnPlay.innerHTML = "❌ Sin texto";
                 }
-                btnPlay.disabled = false;
-            }).catch(err => {
+            } else {
                 btnPlay.innerHTML = "❌ Error";
-                mostrarError("No se pudo leer el texto de esta página.");
-            });
+            }
         }
 
-        // LÓGICA DE VOCES
+        // CARGAR TODAS LAS VOCES POSIBLES
         function populateVoiceList() {
             if (typeof speechSynthesis === 'undefined') return;
             const voices = synth.getVoices();
             voiceSelect.innerHTML = '';
             
+            // Ya NO filtramos solo español. Mostramos TODAS las voces que tenga el PC.
             voices.forEach((voice, i) => {
-                if (voice.lang.includes('es')) {
-                    const option = document.createElement('option');
-                    // Resaltar voces de Google o Naturales (suenan mucho mejor)
-                    if (voice.name.includes('Google') || voice.name.includes('Natural') || voice.name.includes('Premium')) {
-                        option.textContent = `⭐ ${voice.name} (${voice.lang})`;
-                    } else {
-                        option.textContent = `${voice.name} (${voice.lang})`;
-                    }
-                    option.value = i;
-                    voiceSelect.appendChild(option);
-                }
+                const option = document.createElement('option');
+                option.textContent = `${voice.name} (${voice.lang})`;
+                option.value = i;
+                voiceSelect.appendChild(option);
             });
+            
+            // Si hay voces, seleccionamos una en español por defecto
+            const defaultVoice = voices.findIndex(v => v.lang.includes('es'));
+            if(defaultVoice !== -1) voiceSelect.value = defaultVoice;
         }
-        populateVoiceList();
-        if (speechSynthesis.onvoiceschanged !== undefined) { speechSynthesis.onvoiceschanged = populateVoiceList; }
 
-        // CONTROLES DE AUDIO
+        // Algunos navegadores tardan en cargar la lista de voces, así que forzamos la carga
+        populateVoiceList();
+        setTimeout(populateVoiceList, 500); 
+        setTimeout(populateVoiceList, 1500);
+        if (speechSynthesis.onvoiceschanged !== undefined) { 
+            speechSynthesis.onvoiceschanged = populateVoiceList; 
+        }
+
+        // REPRODUCTOR
         function togglePlay() {
             if (synth.speaking && !synth.paused) { synth.pause(); btnPlay.innerHTML = "▶️ Reanudar"; }
             else if (synth.paused) { synth.resume(); btnPlay.innerHTML = "⏸️ Pausar"; }
@@ -216,11 +204,11 @@
             
             let utterance = new SpeechSynthesisUtterance(textParagraphs[index]);
             const voices = synth.getVoices();
+            
             if (voiceSelect.value && voices[voiceSelect.value]) {
                 utterance.voice = voices[voiceSelect.value];
             }
             utterance.rate = parseFloat(rateSlider.value);
-            utterance.lang = 'es-ES';
 
             utterance.onend = () => { if (isPlaying) { readParagraph(currentIndex + 1); } };
             utterance.onerror = (e) => { if(e.error !== "interrupted" && e.error !== "canceled") { stopReading(); } };
