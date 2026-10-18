@@ -11,27 +11,21 @@
     <style>
         :root { --bg: #121212; --sidebar: #1a1a1a; --text: #e0e0e0; --accent: #d4af37; --highlight: #f39c12; }
         
-        /* Usamos 100dvh para evitar problemas con la barra de direcciones en móviles */
         body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
         
-        /* Barra Superior */
         #top-bar { background: #1a1a1a; padding: 10px 20px; display: flex; align-items: center; gap: 15px; border-bottom: 1px solid #333; z-index: 20; flex-shrink: 0; }
         #top-bar select { background: #333; color: white; border: 1px solid #555; padding: 8px 12px; border-radius: 5px; font-size: 1rem; cursor: pointer; width: 100%; max-width: 300px; }
 
-        /* Contenedor Principal */
         #app-container { display: flex; flex: 1; overflow: hidden; }
 
-        /* Menú lateral */
         #sidebar { width: 320px; background: var(--sidebar); border-right: 1px solid #333; display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0; }
         #sidebar h2 { color: var(--accent); font-size: 1.1rem; padding: 15px; margin: 0; text-align: center; border-bottom: 1px solid #333; }
         #toc-container a { display: block; padding: 12px 20px; color: #aaa; text-decoration: none; border-bottom: 1px solid #222; cursor: pointer; font-size: 0.95rem;}
         #toc-container a:hover, #toc-container a.active { background: rgba(212,175,55,0.1); color: var(--accent); border-left: 4px solid var(--accent); }
         
-        /* Área de lectura */
         #main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #fff; position: relative; }
         #viewer { flex: 1; overflow-y: auto; overflow-x: hidden; color: #000; } 
         
-        /* Controles inferiores */
         #audio-controls { background: #1e1e1e; border-top: 1px solid #333; padding: 15px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 15px; z-index: 10; flex-shrink: 0; }
         button { background: var(--accent); color: #000; border: none; padding: 10px 20px; border-radius: 30px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 0.95rem; }
         button:hover { background: var(--highlight); transform: scale(1.05); }
@@ -39,13 +33,10 @@
         select, input[type="range"] { background: #333; color: white; border: 1px solid #555; padding: 8px; border-radius: 5px; outline: none; }
         .control-group { display: flex; align-items: center; gap: 8px; color: #aaa; font-size: 0.9rem; }
 
-        /* RESPONSIVE: Diseño para Celulares */
         @media (max-width: 768px) { 
             #app-container { flex-direction: column; }
             #sidebar { width: 100%; height: 30dvh; border-right: none; border-bottom: 1px solid #333; }
             #viewer { flex: 1; height: 100%; }
-            
-            /* Apilamos los controles para que quepan perfectamente */
             #audio-controls { padding: 10px; gap: 10px; flex-direction: column; justify-content: center; }
             .controls-row { display: flex; width: 100%; justify-content: space-around; align-items: center; gap: 10px; }
             .control-group { flex-direction: column; align-items: flex-start; font-size: 0.8rem; flex: 1; }
@@ -73,7 +64,6 @@
         <div id="main-content">
             <div id="viewer"></div>
             
-            <!-- Controles Rediseñados -->
             <div id="audio-controls">
                 <div class="controls-row">
                     <button id="btn-play" onclick="togglePlay()" disabled style="flex:1;">▶️ Reproducir</button>
@@ -114,7 +104,6 @@
             book = ePub(archivo); 
             rendition = book.renderTo("viewer", { width: "100%", height: "100%", flow: "scrolled-doc", spread: "none" });
 
-            // Forzar el ajuste de texto en pantalla
             rendition.themes.default({
                 'html, body': { 'overflow-x': 'hidden !important', 'width': '100% !important', 'box-sizing': 'border-box' },
                 'p': { 'font-size': '1.2rem', 'line-height': '1.6' }
@@ -167,11 +156,9 @@
                 let rawText = contents[0].document.body.innerText || contents[0].document.body.textContent;
                 
                 if (rawText && rawText.trim() !== "") {
-                    // Dividimos el texto en oraciones
                     let oraciones = rawText.match(/[^.!?]+[.!?]+/g) || [rawText];
-                    
-                    // Buscar el inicio del capítulo por su título
                     let startIndex = 0;
+                    
                     if (label) {
                         let busqueda = label.substring(0, 15).toLowerCase(); 
                         let indexEncontrado = oraciones.findIndex(o => o.toLowerCase().includes(busqueda));
@@ -192,7 +179,7 @@
             if (isPlaying && !isPaused) {
                 isPaused = true;
                 isPlaying = false;
-                synth.cancel(); // Pausa forzada
+                synth.cancel(); 
                 btnPlay.innerHTML = "▶️ Reanudar";
             } else {
                 isPaused = false;
@@ -209,14 +196,24 @@
             currentChunkIndex = index;
             let utterance = new SpeechSynthesisUtterance(textChunks[index]);
             
+            // --- ARREGLO DE VOZ MÓVIL ---
+            // Buscamos la voz por su ID único (voiceURI) en lugar del índice numérico
             const voices = synth.getVoices();
-            if (voiceSelect.value !== "" && voices[voiceSelect.value]) {
-                utterance.voice = voices[voiceSelect.value];
+            const selectedURI = voiceSelect.value;
+            
+            if (selectedURI) {
+                const selectedVoice = voices.find(v => v.voiceURI === selectedURI);
+                if (selectedVoice) {
+                    utterance.voice = selectedVoice;
+                    utterance.lang = selectedVoice.lang; // Forzar el idioma de la voz
+                }
             }
+            // ---------------------------
+
             utterance.rate = parseFloat(rateSlider.value);
 
             utterance.onend = () => { if (isPlaying && !isPaused) { leerFragmento(currentChunkIndex + 1); } };
-            utterance.onerror = (e) => { if(e.error !== "interrupted" && e.error !== "canceled") { stopReading(); } };
+            utterance.onerror = (e) => { if(e.error !== "interrupted" && e.error !== "canceled" && e.error !== "not-allowed") { stopReading(); } };
 
             synth.speak(utterance);
         }
@@ -230,45 +227,68 @@
             btnStop.disabled = true;
         }
 
-        // 4. CONTROL DE VOCES (Optimizado para celulares)
+        // 4. CONTROL DE VOCES (Arreglado para Celulares)
         function cargarVoces() {
             if (typeof speechSynthesis === 'undefined') return;
             const voices = synth.getVoices();
             
-            // Si no hay voces aún, esperamos
             if (voices.length === 0) return;
 
-            voiceSelect.innerHTML = '<option value="">Voz por defecto</option>';
-            let indexDefecto = 0;
+            // Evitar recargar si ya se están mostrando las voces
+            if (voiceSelect.options.length > 1) return;
 
-            voices.forEach((voice, i) => {
+            voiceSelect.innerHTML = '<option value="">Voz por defecto</option>';
+            let bestVoiceURI = "";
+
+            voices.forEach((voice) => {
                 const option = document.createElement('option');
-                // Marcamos con estrella las que suenan mejor en celular
+                // GUARDAMOS EL voiceURI EN EL VALUE (Esto es la clave para móviles)
+                option.value = voice.voiceURI; 
+                
                 if (voice.name.includes('Google') || voice.name.includes('Natural') || voice.name.includes('Siri')) {
                     option.textContent = `⭐ ${voice.name} (${voice.lang})`;
-                    if(indexDefecto === 0) indexDefecto = i; // Autoseleccionar la mejor
+                    if (!bestVoiceURI && voice.lang.includes('es')) bestVoiceURI = voice.voiceURI;
                 } else {
                     option.textContent = `${voice.name} (${voice.lang})`;
                 }
-                option.value = i;
                 voiceSelect.appendChild(option);
             });
 
-            voiceSelect.value = indexDefecto;
+            // Seleccionar automáticamente una buena voz al cargar
+            if (bestVoiceURI) {
+                voiceSelect.value = bestVoiceURI;
+            } else {
+                const firstEs = voices.find(v => v.lang.includes('es'));
+                if(firstEs) voiceSelect.value = firstEs.voiceURI;
+            }
         }
 
         function cambiarVoz() {
-            // Si el usuario cambia la voz mientras lee, forzamos la actualización en móviles
             if (isPlaying) {
                 synth.cancel(); // Detenemos el motor
-                setTimeout(() => leerFragmento(currentChunkIndex), 100); // Reanudamos con la nueva voz
+                // 250ms es el tiempo mágico que necesitan los celulares para cambiar de voz sin trabarse
+                setTimeout(() => {
+                    if (isPlaying || isPaused) {
+                        isPlaying = true;
+                        isPaused = false;
+                        btnPlay.innerHTML = "⏸️ Pausar";
+                        leerFragmento(currentChunkIndex); 
+                    }
+                }, 250); 
             }
         }
 
         function cambiarVelocidad() {
             if (isPlaying) {
                 synth.cancel();
-                setTimeout(() => leerFragmento(currentChunkIndex), 100);
+                setTimeout(() => {
+                    if (isPlaying || isPaused) {
+                        isPlaying = true;
+                        isPaused = false;
+                        btnPlay.innerHTML = "⏸️ Pausar";
+                        leerFragmento(currentChunkIndex);
+                    }
+                }, 250);
             }
         }
 
@@ -280,7 +300,8 @@
         window.onload = function() {
             cargarLibro("libro.epub"); 
             cargarVoces();
-            // Los navegadores móviles tardan en cargar las voces, forzamos la carga varias veces
+            
+            // Forzar carga de voces (Los celulares tardan en despertar el motor de voz)
             setTimeout(cargarVoces, 500); 
             setTimeout(cargarVoces, 1500); 
             setTimeout(cargarVoces, 3000); 
