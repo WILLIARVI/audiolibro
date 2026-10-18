@@ -5,64 +5,82 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Escuchar: El Eco de lo Eterno - Willi Arvi</title>
     
-    <!-- Librerías actualizadas desde un CDN más estable -->
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.88/dist/epub.min.js"></script>
 
     <style>
-        :root { --bg: #121212; --sidebar: #1a1a1a; --text: #e0e0e0; --accent: #d4af37; --hover: #f39c12; }
+        :root { --bg: #121212; --sidebar: #1a1a1a; --text: #e0e0e0; --accent: #d4af37; }
         body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
-        #sidebar { width: 320px; background: var(--sidebar); border-right: 1px solid #333; display: flex; flex-direction: column; z-index: 10; }
+        
+        /* Menú lateral */
+        #sidebar { width: 320px; background: var(--sidebar); border-right: 1px solid #333; display: flex; flex-direction: column; z-index: 10; flex-shrink: 0; }
         #sidebar h2 { color: var(--accent); font-size: 1.2rem; padding: 20px; margin: 0; text-align: center; border-bottom: 1px solid #333; }
         #toc-container { flex: 1; overflow-y: auto; padding: 10px 0; }
-        #toc-container a { display: block; padding: 15px 20px; color: #aaa; text-decoration: none; border-bottom: 1px solid #222; cursor: pointer; }
+        #toc-container a { display: block; padding: 15px 20px; color: #aaa; text-decoration: none; border-bottom: 1px solid #222; cursor: pointer; font-size: 0.95rem;}
         #toc-container a:hover, #toc-container a.active { background: rgba(212,175,55,0.1); color: var(--accent); border-left: 4px solid var(--accent); }
-        #main-content { flex: 1; display: flex; flex-direction: column; }
-        #viewer { flex: 1; padding: 20px; overflow-y: hidden; }
-        #audio-controls { background: #1e1e1e; border-top: 1px solid #333; padding: 15px 30px; display: flex; align-items: center; gap: 20px; }
-        button { background: var(--accent); color: #000; border: none; padding: 12px 24px; border-radius: 30px; font-weight: bold; cursor: pointer; }
-        button:disabled { background: #555; color: #888; cursor: not-allowed; }
-        select, input[type="range"] { background: #333; color: white; border: 1px solid #555; padding: 8px; border-radius: 5px; }
-        .control-group { display: flex; align-items: center; gap: 10px; color: #aaa; font-size: 0.9rem; }
-        #debug-box { display: none; background: #ff4444; color: white; padding: 20px; margin: 20px; border-radius: 8px; font-family: monospace; }
+        
+        /* Área de lectura */
+        #main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #fff; }
+        #viewer { flex: 1; overflow-y: auto; color: #000; } /* Fondo blanco para leer cómodamente */
+        
+        /* Controles inferiores */
+        #audio-controls { background: #1e1e1e; border-top: 1px solid #333; padding: 15px; display: flex; flex-wrap: wrap; align-items: center; gap: 15px; justify-content: center; }
+        button { background: var(--accent); color: #000; border: none; padding: 10px 20px; border-radius: 30px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #f39c12; transform: scale(1.05); }
+        button:disabled { background: #555; color: #888; cursor: not-allowed; transform: none; }
+        select, input[type="range"] { background: #333; color: white; border: 1px solid #555; padding: 8px; border-radius: 5px; outline: none; }
+        .control-group { display: flex; align-items: center; gap: 8px; color: #aaa; font-size: 0.9rem; }
+        
+        /* Caja de errores */
+        #debug-box { display: none; background: #ff4444; color: white; padding: 15px; margin: 15px; border-radius: 8px; font-family: monospace; }
+
+        /* Diseño para Celulares */
+        @media (max-width: 768px) { 
+            body { flex-direction: column; } 
+            #sidebar { width: 100%; height: 200px; border-right: none; border-bottom: 1px solid #333; } 
+            #audio-controls { padding: 10px; gap: 10px; }
+        }
     </style>
 </head>
 <body>
 
     <div id="sidebar">
-        <h2>Índice del Libro</h2>
-        <div id="toc-container"><p style="padding: 20px; color: #666; text-align: center;">Cargando libro...</p></div>
+        <h2>Índice</h2>
+        <div id="toc-container"><p style="padding: 20px; color: #666; text-align: center;">Cargando...</p></div>
     </div>
 
     <div id="main-content">
         <div id="viewer">
-            <!-- Caja de errores visible en pantalla -->
             <div id="debug-box"></div>
         </div>
+        
         <div id="audio-controls">
             <button id="btn-play" onclick="togglePlay()" disabled>▶️ Reproducir</button>
             <button id="btn-stop" onclick="stopReading()" disabled>⏹️ Detener</button>
-            <div class="control-group"><label>Voz:</label><select id="voice-select"></select></div>
-            <div class="control-group"><label>Velocidad:</label><input type="range" id="rate-slider" min="0.5" max="2" step="0.1" value="1"></div>
+            
+            <div class="control-group">
+                <label>Voz:</label>
+                <select id="voice-select"></select>
+            </div>
+            
+            <div class="control-group">
+                <label>Velocidad:</label>
+                <input type="range" id="rate-slider" min="0.5" max="2" step="0.1" value="1">
+            </div>
         </div>
     </div>
 
     <script>
-        // --- SISTEMA DE DIAGNÓSTICO ---
         function mostrarError(mensaje) {
             const box = document.getElementById('debug-box');
             box.style.display = 'block';
             box.innerHTML += `<p><b>ERROR:</b> ${mensaje}</p>`;
-            console.error(mensaje);
         }
-
-        window.onerror = function(msg, url, line) {
-            mostrarError(`Fallo en el script: ${msg} (Línea ${line})`);
-        };
 
         let book, rendition, isPlaying = false;
         let textParagraphs = [], currentIndex = 0;
-        
+        let synth = window.speechSynthesis;
+
         const viewer = document.getElementById('viewer');
         const tocContainer = document.getElementById('toc-container');
         const btnPlay = document.getElementById('btn-play');
@@ -70,94 +88,105 @@
         const voiceSelect = document.getElementById('voice-select');
         const rateSlider = document.getElementById('rate-slider');
 
-        // Iniciar carga del ePub
-        try {
-            book = ePub("libro.epub"); 
-            rendition = book.renderTo("viewer", { width: "100%", height: "100%", spread: "always" });
-            
-            // Verificar si el archivo realmente existe y se puede leer
-            book.ready.then(() => {
-                document.getElementById('toc-container').innerHTML = '<p style="color: #aaa; padding: 20px;">Archivo ePub abierto correctamente. Generando índice...</p>';
-                return book.loaded.navigation.catch(e => {
-                    mostrarError("El ePub no tiene un índice estándar válido. Usando modo de respaldo.");
-                    return { toc: [] }; // Respaldo si el índice de Word falla
-                });
-            }).then((navigation) => {
-                let tocHTML = '<ul>';
-                
-                // Si el ePub trae índice, lo usamos
-                if (navigation.toc && navigation.toc.length > 0) {
-                    navigation.toc.forEach(item => {
-                        tocHTML += `<li><a href="#" data-href="${item.href}">${item.label.trim()}</a></li>`;
-                    });
-                } else {
-                    // Si no, creamos un índice falso basado en las páginas
-                    book.spine.each((section, i) => {
-                        tocHTML += `<li><a href="#" data-href="${section.href}">Sección / Página ${i + 1}</a></li>`;
-                    });
-                }
-                tocHTML += '</ul>';
-                tocContainer.innerHTML = tocHTML;
-                
-                // Seleccionar el primero por defecto
-                const firstLink = tocContainer.querySelector('a');
-                if(firstLink) {
-                    firstLink.classList.add('active');
-                    loadChapter(firstLink.getAttribute('data-href'));
-                    rendition.display(firstLink.getAttribute('data-href')).catch(e => mostrarError("Error visual: " + e));
-                }
+        // Inicializar ePub
+        book = ePub("libro.epub"); 
+        
+        // CONFIGURACIÓN CLAVE: Scroll vertical, no paginado
+        rendition = book.renderTo("viewer", { 
+            width: "100%", 
+            height: "100%", 
+            flow: "scrolled-doc", // Evita la pantalla gigante horizontal
+            spread: "none" 
+        });
 
-                document.querySelectorAll('#toc-container a').forEach(link => {
-                    link.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        document.querySelectorAll('#toc-container a').forEach(l => l.classList.remove('active'));
-                        this.classList.add('active');
-                        stopReading();
-                        const href = this.getAttribute('data-href');
-                        rendition.display(href).catch(e => mostrarError("Error visual al cambiar de página: " + e));
-                        loadChapter(href);
-                    });
-                });
-            }).catch(err => {
-                mostrarError("No se pudo cargar el archivo libro.epub. Asegúrate de que el nombre sea exacto y no esté dañado. Detalle: " + err);
+        book.ready.then(() => {
+            return book.loaded.navigation;
+        }).then((navigation) => {
+            let tocHTML = '<ul>';
+            navigation.toc.forEach(item => {
+                tocHTML += `<li><a href="#" data-href="${item.href}">${item.label.trim()}</a></li>`;
             });
+            tocHTML += '</ul>';
+            tocContainer.innerHTML = tocHTML;
+            
+            const firstLink = tocContainer.querySelector('a');
+            if(firstLink) {
+                firstLink.classList.add('active');
+                loadChapter(firstLink.getAttribute('data-href'));
+                rendition.display(firstLink.getAttribute('data-href'));
+            }
 
-        } catch (error) {
-            mostrarError("Error crítico inicial: " + error.message);
-        }
+            document.querySelectorAll('#toc-container a').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    document.querySelectorAll('#toc-container a').forEach(l => l.classList.remove('active'));
+                    this.classList.add('active');
+                    stopReading();
+                    const href = this.getAttribute('data-href');
+                    rendition.display(href); // Muestra el texto en pantalla
+                    loadChapter(href); // Carga el texto para la voz
+                });
+            });
+        }).catch(err => mostrarError("Error al cargar el índice del ePub."));
 
-        // Extraer texto para lectura
+        // EXTRAER TEXTO (Corregido para evitar el error [object Object])
         function loadChapter(href) {
             currentIndex = 0;
             textParagraphs = [];
             btnPlay.disabled = true;
-            btnPlay.innerHTML = "⏳ Leyendo texto...";
+            btnPlay.innerHTML = "⏳ Cargando texto...";
 
-            book.load(href).then((doc) => {
-                let rawText = doc.body.innerText;
-                rawText = rawText.replace(/\n{3,}/g, '\n\n'); 
-                textParagraphs = rawText.split('\n').filter(p => p.trim().length > 0);
-                
+            let section = book.spine.get(href);
+            if (!section) {
+                // A veces el href trae un #ancla. Buscamos coincidencias.
+                section = book.spine.spineItems.find(item => item.href.includes(href.split('#')[0]));
+            }
+
+            if (!section) {
+                btnPlay.innerHTML = "❌ Error";
+                return mostrarError("No se pudo localizar la sección del texto.");
+            }
+
+            section.load(book.load.bind(book)).then((doc) => {
+                // Extraemos el texto de forma segura, evitando que falle con las imágenes
+                let rawText = "";
+                if (doc.body) {
+                    rawText = doc.body.innerText;
+                } else if (doc.documentElement) {
+                    rawText = doc.documentElement.textContent;
+                }
+
+                // Si no hay texto (ej. la portada), avisamos
+                if (!rawText || rawText.trim() === "") {
+                    btnPlay.innerHTML = "❌ Sin texto";
+                    textParagraphs = ["Esta página contiene solo imágenes o está en blanco. Por favor, selecciona un capítulo en el índice."];
+                } else {
+                    rawText = rawText.replace(/\n{3,}/g, '\n\n'); 
+                    textParagraphs = rawText.split('\n').filter(p => p.trim().length > 0);
+                    btnPlay.innerHTML = "▶️ Reproducir";
+                }
                 btnPlay.disabled = false;
-                btnPlay.innerHTML = "▶️ Reproducir";
             }).catch(err => {
-                mostrarError("No se pudo extraer el texto de esta sección: " + err);
-                btnPlay.innerHTML = "❌ Error de texto";
+                btnPlay.innerHTML = "❌ Error";
+                mostrarError("No se pudo leer el texto de esta página.");
             });
         }
 
-        // Lógica de Voz
-        let synth = window.speechSynthesis;
-        let currentUtterance = null;
-
+        // LÓGICA DE VOCES
         function populateVoiceList() {
             if (typeof speechSynthesis === 'undefined') return;
             const voices = synth.getVoices();
             voiceSelect.innerHTML = '';
+            
             voices.forEach((voice, i) => {
                 if (voice.lang.includes('es')) {
                     const option = document.createElement('option');
-                    option.textContent = `${voice.name} (${voice.lang})`;
+                    // Resaltar voces de Google o Naturales (suenan mucho mejor)
+                    if (voice.name.includes('Google') || voice.name.includes('Natural') || voice.name.includes('Premium')) {
+                        option.textContent = `⭐ ${voice.name} (${voice.lang})`;
+                    } else {
+                        option.textContent = `${voice.name} (${voice.lang})`;
+                    }
                     option.value = i;
                     voiceSelect.appendChild(option);
                 }
@@ -166,17 +195,15 @@
         populateVoiceList();
         if (speechSynthesis.onvoiceschanged !== undefined) { speechSynthesis.onvoiceschanged = populateVoiceList; }
 
+        // CONTROLES DE AUDIO
         function togglePlay() {
-            if (synth.speaking && !synth.paused) synth.pause();
-            else if (synth.paused) synth.resume();
-            else startReading();
+            if (synth.speaking && !synth.paused) { synth.pause(); btnPlay.innerHTML = "▶️ Reanudar"; }
+            else if (synth.paused) { synth.resume(); btnPlay.innerHTML = "⏸️ Pausar"; }
+            else { startReading(); }
         }
 
         function startReading() {
-            if (textParagraphs.length === 0) {
-                mostrarError("No hay texto cargado para leer.");
-                return;
-            }
+            if (textParagraphs.length === 0) return;
             readParagraph(currentIndex);
             isPlaying = true;
             btnPlay.innerHTML = "⏸️ Pausar";
@@ -186,19 +213,19 @@
         function readParagraph(index) {
             if (index >= textParagraphs.length) { stopReading(); return; }
             currentIndex = index;
-            currentUtterance = new SpeechSynthesisUtterance(textParagraphs[index]);
             
+            let utterance = new SpeechSynthesisUtterance(textParagraphs[index]);
             const voices = synth.getVoices();
             if (voiceSelect.value && voices[voiceSelect.value]) {
-                currentUtterance.voice = voices[voiceSelect.value];
+                utterance.voice = voices[voiceSelect.value];
             }
-            currentUtterance.rate = parseFloat(rateSlider.value);
-            currentUtterance.lang = 'es-ES';
+            utterance.rate = parseFloat(rateSlider.value);
+            utterance.lang = 'es-ES';
 
-            currentUtterance.onend = () => { if (isPlaying) { readParagraph(currentIndex + 1); } };
-            currentUtterance.onerror = (e) => { if(e.error !== "interrupted" && e.error !== "canceled") { mostrarError("Error de voz: " + e.error); stopReading(); } };
+            utterance.onend = () => { if (isPlaying) { readParagraph(currentIndex + 1); } };
+            utterance.onerror = (e) => { if(e.error !== "interrupted" && e.error !== "canceled") { stopReading(); } };
 
-            synth.speak(currentUtterance);
+            synth.speak(utterance);
         }
 
         function stopReading() {
